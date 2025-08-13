@@ -1,13 +1,16 @@
-{
-  "name": "gpt-prompt-badge",
-  "description": "Vertical per-model prompt‑usage badge for ChatGPT pages",
-  "version": "0.1",
+{ 
+  "name": "gpt-prompt-usage",
+  "description": "Vertical per-model prompt-usage badge for ChatGPT pages",
+  "version": "0.2",
   "manifest_version": 3,
-  "permissions": ["storage", "scripting"],
+  "permissions": ["storage", "scripting", "tabs", "activeTab"],
   "host_permissions": [
     "https://chat.openai.com/*",
     "https://chatgpt.com/*"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": [
@@ -22,10 +25,7 @@
   "web_accessible_resources": [
     {
       "resources": ["page-script.js"],
-      "matches": [
-        "https://chat.openai.com/*",
-        "https://chatgpt.com/*"
-      ]
+      "matches": ["https://chat.openai.com/*", "https://chatgpt.com/*"]
     }
   ]
 }
