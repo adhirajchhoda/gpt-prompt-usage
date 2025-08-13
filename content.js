@@ -1,18 +1,8 @@
-// Injects the page script from the extension bundle. Executed in the
-// content-script context. This approach avoids content security policy
-// restrictions on inline scripts by loading the helper script as a
-// resource from the extension.
-(function(){
+(function() {
   try {
-    const s = document.createElement('script');
-    s.src = chrome.runtime.getURL('page-script.js');
-    s.type = 'text/javascript';
-    s.async = false;
-    (document.documentElement || document.head || document.body || document).appendChild(s);
-    s.onload = () => {
-      try { s.remove(); } catch (e) {}
-    };
+    chrome.runtime.sendMessage({ type: 'inject_page_script' }, function(resp) {
+    });
   } catch (e) {
-    console.warn('GPT-Badge: injection failed', e);
+    console.warn('GPT-Badge: content.js sendMessage failed', e);
   }
 })();
