@@ -1,5 +1,3 @@
-# gpt-prompt-badge
-
 This repository contains a lightweight browser extension that displays a vertical
 badge on ChatGPT pages showing how many messages you have used and how many
 remain per model within the current quota window. It works on `chat.openai.com`
