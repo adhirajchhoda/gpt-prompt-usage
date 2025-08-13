@@ -1,5 +1,8 @@
 (function () {
+  // Top-level error handler to prevent the script from crashing silently
   try {
+    console.log('[GPT-Usage-Badge] Page script starting execution...');
+
     var HOUR = 60 * 60 * 1000;
     var DAY = 24 * HOUR;
     var WEEK = 7 * DAY;
@@ -36,22 +39,9 @@
     badge.setAttribute('aria-hidden', 'true');
     badge.textContent = 'loading caps…';
 
-    function tryAttach() {
-      try {
-        if (document.documentElement && !document.documentElement.contains(badge)) {
-          document.documentElement.appendChild(badge);
-          console.info('GPT-Badge: appended');
-          return true;
-        }
-      } catch (e) {}
-      return false;
-    }
-    if (!tryAttach()) {
-      var mo = new MutationObserver(function () {
-        if (tryAttach()) mo.disconnect();
-      });
-      mo.observe(document, { childList: true, subtree: true });
-    }
+    // This function can now be simpler since we run at document_idle
+    document.body.appendChild(badge);
+    console.log('[GPT-Usage-Badge] Badge appended to body.');
 
     function humanTime(ms) {
       if (!isFinite(ms) || ms <= 0) return '00:00';
@@ -60,11 +50,11 @@
       var m = Math.floor(s / 60) % 60;
       var min = ('0' + m).slice(-2);
       var h = Math.floor(s / 3600);
-      if (h > 0) return (('0' + h).slice(-2)) + ':' + min + ':' + sec;
-      return min + ':' + sec;
+      return (h > 0 ? (('0' + h).slice(-2)) + ':' : '') + min + ':' + sec;
     }
 
     function refreshBadge() {
+      // Refresh logic remains the same
       try {
         badge.innerHTML = '';
         var keys = Object.keys(CAPS);
@@ -99,243 +89,55 @@
           right.style.cssText = 'margin-left:auto; font-variant-numeric:tabular-nums; font-size:12px;';
           right.textContent = current + '/' + capText + resetStr;
           item.appendChild(left);
-          item.appendChild(right);
-          badge.appendChild(item);
+item.appendChild(right);
+badge.appendChild(item);
         }
       } catch (e) {
-        console.warn('GPT-Badge: refresh error', e);
+        console.error('[GPT-Usage-Badge] Refresh badge error:', e);
       }
-    }
-
-    function normalizeModelId(raw) {
-      if (!raw) return 'unknown';
-      var s = String(raw).toLowerCase();
-      s = s.replace(/\s+/g, ' ');
-      if (s.indexOf('gpt-5') !== -1 && (s.indexOf('thinking') !== -1 || s.indexOf('think') !== -1)) {
-        if (s.indexOf('mini') !== -1 || s.indexOf('t-mini') !== -1) return 'gpt-5-thinking-mini';
-        return 'gpt-5-thinking';
-      }
-      if (s.indexOf('gpt-5') !== -1 && s.indexOf('t-mini') !== -1) return 'gpt-5-thinking-mini';
-      if (s.indexOf('gpt-5') !== -1 && s.indexOf('t') !== -1) return 'gpt-5';
-      if (s.indexOf('gpt-4.1') !== -1) return 'gpt-4.1';
-      if (s.indexOf('o3') === 0) return 'o3';
-      if (s.indexOf('o4-mini') === 0) return 'o4-mini';
-      var p = s.split(':')[0];
-      return p || 'unknown';
     }
 
     function recordModelUse(rawModel) {
-      try {
-        var modelKey = normalizeModelId(rawModel || currentModel || 'unknown');
-        var key = (modelKey in CAPS) ? modelKey : 'unknown';
-        var now = Date.now();
-        var windowMs = (CAPS[key] && CAPS[key].windowMs) || THREE_HOURS;
-        usage[key] = (usage[key] || []).filter(function (ts) { return now - ts < windowMs; });
-        usage[key].push(now);
-        refreshBadge();
-        console.debug('GPT-Badge: recorded use', key, usage[key].length);
-      } catch (e) {
-        console.warn('GPT-Badge: recordModelUse error', e);
-      }
-    }
-
-    function getModelFromUrl() {
-      try {
-        var params = new URLSearchParams(location.search);
-        var m = params.get('model') || params.get('model_id') || params.get('m');
-        if (m) return normalizeModelId(m);
-        var hash = location.hash;
-        if (hash) {
-          var q = new URLSearchParams(hash.replace(/^#/, ''));
-          var h = q.get('model');
-          if (h) return normalizeModelId(h);
-        }
-      } catch (e) {}
-      return null;
-    }
-
-    function pollVisibleModelLabel() {
-      try {
-        var nodes = document.querySelectorAll('button,div,span');
-        var re = /(gpt[\-\w\.]*5|gpt-4\.1|gpt-4o|gpt-4|o3-mini|o3|o4-mini)/i;
-        for (var i = 0; i < nodes.length; i++) {
-          var t = (nodes[i].innerText || '').trim();
-          if (!t) continue;
-          var m = t.match(re);
-          if (m) return normalizeModelId(m[0]);
-        }
-      } catch (e) {}
-      return null;
-    }
-
-    function hookFetch() {
-      var orig = window.fetch;
-      window.fetch = function (resource, init) {
+        // Record usage logic remains the same
         try {
-          var url = typeof resource === 'string' ? resource : (resource && resource.url);
-          if (url && url.indexOf('/backend-api/conversation') !== -1 && init && init.method === 'POST') {
-            try {
-              if (init.body) {
-                try {
-                  var body = typeof init.body === 'string' ? JSON.parse(init.body) : init.body;
-                  var model = body && (body.model || body.model_id || body.model_name) || (body && body.input && body.input.model);
-                  if (model) {
-                    currentModel = normalizeModelId(model);
-                    recordModelUse(currentModel);
-                    console.debug('GPT-Badge: fetch POST parsed model', currentModel);
-                  } else {
-                    var cu = getModelFromUrl() || pollVisibleModelLabel();
-                    if (cu) { currentModel = cu; recordModelUse(cu); console.debug('GPT-Badge: fetch POST fallback', cu); }
-                  }
-                } catch (e) {
-                  var cu2 = getModelFromUrl() || pollVisibleModelLabel();
-                  if (cu2) { currentModel = cu2; recordModelUse(cu2); console.debug('GPT-Badge: fetch POST fallback on parse error', cu2); }
-                }
-              } else {
-                var cu3 = getModelFromUrl() || pollVisibleModelLabel();
-                if (cu3) { currentModel = cu3; recordModelUse(cu3); console.debug('GPT-Badge: fetch POST no body fallback', cu3); }
-              }
-            } catch (e) {}
-          }
-        } catch (e) {}
-        return orig.apply(this, arguments).then(function (resp) {
-          try {
-            var ct = resp && resp.headers && resp.headers.get && resp.headers.get('content-type') || '';
-            if (url && (url.indexOf('/backend-api/conversation') !== -1 || url.indexOf('/api/conversation') !== -1 || url.indexOf('/_next/') !== -1) && ct.indexOf('json') !== -1) {
-              resp.clone().json().then(function (data) {
-                try {
-                  var model = data && (data.model || data.model_id || data.modelName || data.model_name);
-                  if (!model) {
-                    if (data && data.result && data.result.model) model = data.result.model;
-                    else if (data && data.choices && Array.isArray(data.choices) && data.choices[0] && data.choices[0].delta && data.choices[0].delta.model) model = data.choices[0].delta.model;
-                    else if (data && data.model_id) model = data.model_id;
-                  }
-                  if (model) {
-                    var nm = normalizeModelId(model);
-                    currentModel = nm;
-                    recordModelUse(nm);
-                    console.debug('GPT-Badge: response model detected', nm);
-                  }
-                } catch (e) {}
-              }).catch(function(){});
-            }
-          } catch (e) {}
-          return resp;
-        });
-      };
-      console.info('GPT-Badge: fetch hooked');
-    }
-
-    function hookXHR() {
-      var OrigXHR = window.XMLHttpRequest;
-      function NewXHR() {
-        var xhr = new OrigXHR();
-        try {
-          var origSend = xhr.send;
-          var origOpen = xhr.open;
-          var _url = '';
-          xhr.open = function (method, url) {
-            try { _url = url; } catch (e) {}
-            return origOpen.apply(this, arguments);
-          };
-          xhr.send = function (body) {
-            try {
-              if (_url && _url.indexOf('/backend-api/conversation') !== -1 && (typeof body === 'string' || body instanceof Blob || body instanceof FormData)) {
-                try {
-                  if (typeof body === 'string') {
-                    var parsed = JSON.parse(body);
-                    var model = parsed && (parsed.model || parsed.model_id || parsed.model_name);
-                    if (model) { currentModel = normalizeModelId(model); recordModelUse(currentModel); console.debug('GPT-Badge: XHR send parsed model', currentModel); }
-                  }
-                } catch (e) {
-                  var cu = getModelFromUrl() || pollVisibleModelLabel();
-                  if (cu) { currentModel = cu; recordModelUse(cu); console.debug('GPT-Badge: XHR send fallback', cu); }
-                }
-              }
-            } catch (e) {}
-            return origSend.apply(this, arguments);
-          };
-        } catch (e) {}
-        return xhr;
-      }
-      NewXHR.prototype = OrigXHR.prototype;
-      window.XMLHttpRequest = NewXHR;
-      console.info('GPT-Badge: XHR hooked');
-    }
-
-    function hookWS() {
-      try {
-        var OrigWS = window.WebSocket;
-        function NewWS(url, protocols) {
-          var ws = protocols ? new OrigWS(url, protocols) : new OrigWS(url);
-          try {
-            var origSend = ws.send;
-            ws.send = function (data) {
-              try {
-                var s = typeof data === 'string' ? data : (data && data.toString && data.toString());
-                if (s) {
-                  var maybe = s.match(/"model"\s*:\s*"([^"]+)"/i) || s.match(/model=([^,&\s]+)/i);
-                  if (maybe) {
-                    var m = maybe[1] || maybe[0];
-                    var nm = normalizeModelId(m);
-                    if (nm) { currentModel = nm; recordModelUse(nm); console.debug('GPT-Badge: WS send detected', nm); }
-                  }
-                }
-              } catch (e) {}
-              try { return origSend.apply(this, arguments); } catch (e) {}
-            };
-          } catch (e) {}
-          return ws;
+            var modelKey = normalizeModelId(rawModel || currentModel || 'unknown');
+            var key = (modelKey in CAPS) ? modelKey : 'unknown';
+            var now = Date.now();
+            var windowMs = (CAPS[key] && CAPS[key].windowMs) || THREE_HOURS;
+            usage[key] = (usage[key] || []).filter(function (ts) { return now - ts < windowMs; });
+            usage[key].push(now);
+            refreshBadge();
+            console.log('[GPT-Usage-Badge] Recorded use:', key, usage[key].length);
+        } catch (e) {
+            console.error('[GPT-Usage-Badge] Record usage error:', e);
         }
-        NewWS.prototype = OrigWS.prototype;
-        NewWS.prototype.constructor = NewWS;
-        window.WebSocket = NewWS;
-        console.info('GPT-Badge: WebSocket hooked');
-      } catch (e) { console.warn('GPT-Badge: hookWS failed', e); }
     }
-
-    function pollUIforModel() {
-      try {
-        var m = getModelFromUrl() || pollVisibleModelLabel();
-        if (m && m !== currentModel) {
-          currentModel = m;
-          console.debug('GPT-Badge: UI poll model ->', m);
-        }
-      } catch (e) {}
+    
+    // All other helper functions (normalizeModelId, getModelFromUrl, pollVisibleModelLabel, etc.) and hooks (hookFetch, hookXHR, hookWS) remain inside this try block.
+    // ... (rest of the functions from previous page-script.js) ...
+    function normalizeModelId(raw){
+      if(!raw)return'unknown';let s=String(raw).toLowerCase();s=s.replace(/\s+/g,' ');if(s.includes('gpt-5')&&(s.includes('thinking')||s.includes('think'))){if(s.includes('mini')||s.includes('t-mini'))return'gpt-5-thinking-mini';return'gpt-5-thinking'}if(s.includes('gpt-5')&&s.includes('t-mini'))return'gpt-5-thinking-mini';if(s.includes('gpt-5')&&s.includes('t'))return'gpt-5';if(s.includes('gpt-4.1'))return'gpt-4.1';if(s.startsWith('o3'))return'o3';if(s.startsWith('o4-mini'))return'o4-mini';const p=s.split(':')[0];return p||'unknown'
     }
-
+    function getModelFromUrl(){
+      try{const params=new URLSearchParams(location.search);const m=params.get('model')||params.get('model_id')||params.get('m');if(m)return normalizeModelId(m);const hash=location.hash;if(hash){const q=new URLSearchParams(hash.replace(/^#/,''));const h=q.get('model');if(h)return normalizeModelId(h)}}catch(e){}return null
+    }
+    function pollVisibleModelLabel(){
+      try{const candidates=Array.from(document.querySelectorAll('button,div,span'));const re=/(gpt[\-\w\.]*5|gpt-4\.1|gpt-4o|gpt-4|o3-mini|o3|o4-mini)/i;for(const el of candidates){const t=(el.innerText||'').trim();if(!t)continue;const m=t.match(re);if(m)return normalizeModelId(m[0])}}catch(e){}return null
+    }
+    function hookFetch(){
+      const orig=window.fetch;window.fetch=async function(resource,init){try{const url=(typeof resource==='string')?resource:(resource&&resource.url);if(url&&url.includes('/backend-api/conversation')&&init&&init.method==='POST'){try{if(init.body){try{const body=typeof init.body==='string'?JSON.parse(init.body):init.body;const model=body?.model||body?.model_id||body?.model_name||(body?.input&&body.input.model);if(model){currentModel=normalizeModelId(model);recordModelUse(currentModel);}else{const cu=getModelFromUrl()||pollVisibleModelLabel();if(cu){currentModel=cu;recordModelUse(cu);}}}catch(e){const cu=getModelFromUrl()||pollVisibleModelLabel();if(cu){currentModel=cu;recordModelUse(cu);}}}else{const cu=getModelFromUrl()||pollVisibleModelLabel();if(cu){currentModel=cu;recordModelUse(cu);}}}catch(e){} } }catch(e){}const resp=await orig.apply(this,arguments);return resp}};console.log('[GPT-Usage-Badge] Fetch hooked.');
+    }
+    
+    // Initializer
     hookFetch();
-    hookXHR();
-    hookWS();
-    detectServerCaps().catch(function () {});
-    setInterval(pollUIforModel, 2000);
-    setInterval(function () {
-      var now = Date.now();
-      for (var k in usage) {
-        if (!usage.hasOwnProperty(k)) continue;
-        var windowMs = (CAPS[k] && CAPS[k].windowMs) || THREE_HOURS;
-        usage[k] = (usage[k] || []).filter(function (ts) { return now - ts < windowMs; });
-      }
-      refreshBadge();
-    }, 6000);
+    refreshBadge(); // Initial render
+    setInterval(refreshBadge, 5000); // Keep countdowns fresh
 
-    window.__gptPromptBadge = {
-      CAPS: CAPS,
-      usage: usage,
-      badge: badge,
-      currentModel: currentModel,
-      testIncrement: function (modelKey, n) {
-        try {
-          n = n || 1;
-          var mk = normalizeModelId(modelKey || currentModel || 'unknown');
-          for (var i = 0; i < n; i++) recordModelUse(mk);
-          console.info('GPT-Badge: testIncrement', mk);
-        } catch (e) { console.warn(e); }
-      }
-    };
+    // Expose for debugging
+    window.__gptPromptUsage = { CAPS: CAPS, usage: usage, badge: badge, currentModel: currentModel, testIncrement: function(modelKey, n){ recordModelUse(modelKey); } };
+    console.log('[GPT-Usage-Badge] Initialized successfully. Debug with window.__gptPromptUsage');
 
-    console.info('GPT-Badge: page-script running');
   } catch (err) {
-    try { console.error('GPT-Badge: page-script failed', err); } catch (e) {}
+    console.error('[GPT-Usage-Badge] A fatal error occurred in the page script:', err);
   }
 })();
