@@ -1,15 +1,12 @@
 This repository contains a lightweight browser extension that displays a vertical
 badge on ChatGPT pages showing how many messages you have used and how many
-remain per model within the current quota window. It works on `chat.openai.com`
-and `chatgpt.com` conversation pages, including deep `/c/…` URLs.
+remain per model within the current quota window.
 
 ## Features
 
-* Tracks usage for multiple models, including GPT‑5 Thinking, GPT‑4.1,
-  GPT‑4o, and OpenAI's mini models.
+* Tracks usage for multiple GPT models, including 5 Thinking, 4.1, 4o, o3 and OpenAI's other mini models.
 * Supports both conversation POST requests and streaming responses.
-* Displays a vertical badge on the right side with a dark background and
-  highlights models in red when they reach 90 % of the quota.
+* Highlights models in red when they reach 90 % of the quota.
 * Does not collect or send any data off‑device — all logic runs in your
   browser.
 
@@ -22,16 +19,12 @@ and `chatgpt.com` conversation pages, including deep `/c/…` URLs.
 ## Structure
 
 ```
-gpt-prompt-badge/
+gpt-prompt-usage/
   ├─ manifest.json      – Chrome extension manifest (MV3)
   ├─ content.js         – Injects the page script into the page context
   ├─ page-script.js     – Implements the badge and usage tracking logic
   └─ README.md          – This file
 ```
-
-The extension does not include icons or images to remain lightweight. Feel free
-to add your own icons under an `icons/` directory and reference them in
-`manifest.json` if desired.
 
 ## License
 
