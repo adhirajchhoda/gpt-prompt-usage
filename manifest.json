@@ -1,9 +1,9 @@
-{ 
+{
   "name": "gpt-prompt-usage",
   "description": "Vertical per-model prompt-usage badge for ChatGPT pages",
-  "version": "0.2",
+  "version": "0.3",
   "manifest_version": 3,
-  "permissions": ["storage", "scripting", "tabs", "activeTab"],
+  "permissions": ["storage", "scripting"],
   "host_permissions": [
     "https://chat.openai.com/*",
     "https://chatgpt.com/*"
@@ -19,7 +19,7 @@
         "https://chatgpt.com/c/*"
       ],
       "js": ["content.js"],
-      "run_at": "document_start"
+      "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
